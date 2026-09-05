@@ -1,16 +1,17 @@
 # Wisp
 
-A real-time chat and notification service built with Java, Spring Boot, WebSocket (STOMP), and React. Supports live messaging, presence tracking, and reliable online/offline status detection across multiple tabs and dropped connections.
+A real-time chat and notification service built with Java, Spring Boot, WebSocket (STOMP), RabbitMQ, and React. Supports live messaging, presence tracking, and reliable online/offline status detection across multiple tabs and dropped connections.
 
 ## Tech Stack
 
-**Backend:** Java, Spring Boot, WebSocket (STOMP), Spring Data JPA, MySQL  
+**Backend:** Java, Spring Boot, WebSocket (STOMP), RabbitMQ, Spring Data JPA, MySQL  
 **Frontend:** React, TypeScript, Material UI, STOMP.js  
 **Tools:** Docker, Git
 
 ## Features
 
-- **Real-Time Messaging** — instant message delivery using WebSocket with the STOMP protocol
+- **Real-Time Messaging** — instant message delivery using WebSocket with the STOMP protocol, relayed through RabbitMQ instead of an in-memory broker
+- **Message Broker Architecture** — Spring Boot relays all STOMP messages to RabbitMQ using a broker relay, which handles delivering messages to subscribed clients, decoupling message routing from the application server
 - **Presence Tracking** — live online/offline status broadcast to all connected users
 - **Heartbeat Detection** — clients send a heartbeat every 15 seconds; sessions that miss two consecutive heartbeats (30 seconds) are automatically marked offline, solving the problem of users closing the browser without triggering a clean disconnect event
 - **Multi-Tab Reference Counting** — opening multiple tabs for the same user creates multiple tracked sessions; the user is only marked offline once the last open tab disconnects, preventing false offline status while other sessions remain active
@@ -23,9 +24,11 @@ User opens a tab
         ↓
 WebSocket connection established (STOMP over SockJS)
         ↓
+Spring Boot relays the STOMP session to RabbitMQ
+        ↓
 Session registered with a unique sessionId, tied to userId
         ↓
-If this is the user's first active session → broadcast "online"
+If this is the user's first active session → broadcast "online" via RabbitMQ
         ↓
 Client sends a heartbeat every 15 seconds
         ↓
@@ -34,7 +37,7 @@ with no heartbeat in the last 30 seconds
         ↓
 Stale sessions are removed
         ↓
-If zero sessions remain for that user → broadcast "offline"
+If zero sessions remain for that user → broadcast "offline" via RabbitMQ
 ```
 
 ## Running Locally
@@ -52,7 +55,13 @@ If zero sessions remain for that user → broadcast "offline"
 docker run --name wisp-db -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=wisp -p 3307:3306 -d mysql:8
 ```
 
-2. Configure `application.properties`:
+2. Start RabbitMQ with the STOMP plugin enabled:
+```bash
+docker run --name wisp-rabbitmq -p 5672:5672 -p 8090:61613 -p 15672:15672 -e RABBITMQ_DEFAULT_USER=guest -e RABBITMQ_DEFAULT_PASS=guest rabbitmq:3-management
+docker exec wisp-rabbitmq rabbitmq-plugins enable rabbitmq_stomp
+```
+
+3. Configure `application.properties`:
 ```properties
 spring.datasource.url=jdbc:mysql://localhost:3307/wisp?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
 spring.datasource.username=root
@@ -60,10 +69,12 @@ spring.datasource.password=password
 server.port=8081
 ```
 
-3. Run the Spring Boot app from IntelliJ or:
+4. Run the Spring Boot app from IntelliJ or:
 ```bash
 ./mvnw spring-boot:run
 ```
+
+RabbitMQ management UI available at `http://localhost:15672` (guest/guest)
 
 ### Frontend
 
@@ -92,5 +103,5 @@ API runs at `http://localhost:8081`
 | `/app/chat.register` | Client → Server | Registers a new session for presence tracking |
 | `/app/chat.heartbeat` | Client → Server | Sent every 15 seconds to keep session alive |
 | `/app/chat.sendMessage` | Client → Server | Send a chat message |
-| `/topic/room/{roomId}` | Server → Client | Broadcast messages to a chat room |
-| `/topic/presence` | Server → Client | Broadcast online/offline status changes |
+| `/topic/room.{roomId}` | Server → Client (via RabbitMQ) | Broadcast messages to a chat room |
+| `/topic/presence` | Server → Client (via RabbitMQ) | Broadcast online/offline status changes |
