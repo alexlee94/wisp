@@ -12,9 +12,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Messages routed to /topic/** go out to subscribed clients
-        registry.enableSimpleBroker("/topic");
-        // Messages sent from clients to /app/** get routed to @MessageMapping methods
+        // Relay STOMP messages through RabbitMQ instead of the in-memory broker
+        registry.enableStompBrokerRelay("/topic")
+                .setRelayHost("localhost")
+                .setRelayPort(8090)
+                .setClientLogin("guest")
+                .setClientPasscode("guest");
+
         registry.setApplicationDestinationPrefixes("/app");
     }
 

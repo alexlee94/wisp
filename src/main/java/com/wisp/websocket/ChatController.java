@@ -38,7 +38,7 @@ public class ChatController {
         messageRepository.save(message);
 
         messagingTemplate.convertAndSend(
-                "/topic/room/" + chatMessage.roomId(),
+                "/topic/room." + chatMessage.roomId(),
                 new ChatMessageDTO(sender.getId(), sender.getUsername(), chatMessage.content(), chatMessage.roomId())
         );
     }

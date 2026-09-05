@@ -27,7 +27,7 @@ class WebSocketService {
 
                 // Now that we're connected, subscribe to any rooms that were requested early
                 this.pendingRoomSubscriptions.forEach(({ roomId, onMessage }) => {
-                    this.client?.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
+                    this.client?.subscribe(`/topic/room.${roomId}`, (message: IMessage) => {
                         onMessage(JSON.parse(message.body));
                     });
                 });
@@ -48,7 +48,7 @@ class WebSocketService {
 
     subscribeToRoom(roomId: string, onMessage: (msg: ChatMessage) => void) {
         if (this.client?.connected) {
-            this.client.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
+            this.client.subscribe(`/topic/room.${roomId}`, (message: IMessage) => {
                 onMessage(JSON.parse(message.body));
             });
         } else {
